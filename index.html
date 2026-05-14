@@ -171,6 +171,15 @@ h1 .w3{color:transparent;-webkit-text-stroke:1.5px var(--neon-pink);}
 ::-webkit-scrollbar{width:5px;}
 ::-webkit-scrollbar-track{background:var(--bg);}
 ::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:3px;}
+.backup-bar{max-width:960px;margin:0 auto;padding:10px 16px 0;display:flex;justify-content:space-between;align-items:center;gap:8px;position:relative;z-index:1;}
+.sync-status{font-size:11px;color:var(--text2);display:flex;align-items:center;gap:6px;}
+.sync-dot{width:7px;height:7px;border-radius:50%;background:var(--text3);}
+.sync-dot.ok{background:var(--neon-teal);}
+.sync-dot.err{background:var(--neon-pink);}
+.sync-dot.loading{background:var(--neon-yellow);animation:pulse .8s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.backup-btn{background:var(--bg2);border:1px solid var(--bg4);color:var(--text2);font-family:'DM Sans',sans-serif;font-size:11px;padding:6px 14px;border-radius:20px;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:5px;}
+.backup-btn:hover{border-color:var(--neon-orange);color:var(--neon-orange);}
 </style>
 </head>
 <body>
@@ -184,6 +193,15 @@ h1 .w3{color:transparent;-webkit-text-stroke:1.5px var(--neon-pink);}
   <p class="header-sub">Restaurants · Desserts · Cafes · Street Food · Caterers</p>
   <div class="header-line"></div>
 </header>
+
+<div class="backup-bar">
+  <div class="sync-status"><div class="sync-dot loading" id="sync-dot"></div><span id="sync-label">Connecting...</span></div>
+  <div style="display:flex;gap:8px;">
+    <button class="backup-btn" onclick="exportData()">⬇ Export</button>
+    <button class="backup-btn" onclick="document.getElementById('import-input').click()">⬆ Import</button>
+    <input type="file" id="import-input" accept=".json" style="display:none" onchange="importData(event)"/>
+  </div>
+</div>
 
 <div class="stats-bar">
   <div class="stat-item"><span class="stat-num s1" id="st-total">0</span><span class="stat-lbl">Total</span></div>
@@ -312,9 +330,45 @@ var statusLabels={been:'Been Here',want:'Want to Visit',regular:'Regular Spot',w
 var tabLabels={restaurants:'Restaurant',desserts:'Dessert Place',cafes:'Cafe',street:'Street Food Spot',caterers:'Caterer'};
 var tabIcons={restaurants:'🍽️',desserts:'🍰',cafes:'☕',street:'🌮',caterers:'🤌'};
 
-function load(){try{var s=localStorage.getItem('ahmads-food2');if(s)data=JSON.parse(s);}catch(e){}}
-function save(){try{localStorage.setItem('ahmads-food2',JSON.stringify(data));}catch(e){alert('Storage full — try deleting some photos to free up space.');}}
+var SB_URL='https://oludgjpyrennjfkizmas.supabase.co';
+var SB_KEY='sb_publishable_iPOfDAFeSbuFD95Ibnr05w_U9fQHHvJ';
+function sbFetch(path,opts){
+  return fetch(SB_URL+path,Object.assign({headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=representation'}},opts));
+}
+
+function saveLocal(){try{localStorage.setItem('ahmads-food2',JSON.stringify(data));}catch(e){}}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2);}
+
+function setSyncStatus(state,msg){
+  var dot=document.getElementById('sync-dot');
+  var lbl=document.getElementById('sync-label');
+  if(!dot||!lbl)return;
+  dot.className='sync-dot '+state;
+  lbl.textContent=msg;
+}
+
+async function load(){
+  setSyncStatus('loading','Connecting...');
+  try{
+    var res=await sbFetch('/rest/v1/food?select=*&order=created_at.desc');
+    if(!res.ok)throw new Error();
+    var rows=await res.json();
+    data={restaurants:[],desserts:[],cafes:[],street:[],caterers:[]};
+    rows.forEach(function(r){
+      if(data[r.cat]!==undefined) data[r.cat].push({
+        id:r.id,title:r.title,status:r.status,price:r.price||'',
+        location:r.location||'',ordered:r.ordered||'',
+        rating:r.rating||0,thoughts:r.thoughts||'',
+        photos:r.photos?JSON.parse(r.photos):[]
+      });
+    });
+    saveLocal();
+    setSyncStatus('ok','Synced');
+  }catch(e){
+    setSyncStatus('err','Offline — local data');
+    try{var s=localStorage.getItem('ahmads-food2');if(s)data=JSON.parse(s);}catch(ex){}
+  }
+}
 
 function switchTab(cat,btn){
   currentTab=cat;
@@ -401,17 +455,40 @@ function renderCard(e,cat){
 
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
-// ---- PHOTO HANDLING ----
-function handlePhotoUpload(event){
-  var files=Array.from(event.target.files);
-  files.forEach(function(file){
-    var reader=new FileReader();
-    reader.onload=function(e){
-      modalPhotos.push(e.target.result);
-      renderModalPreviews();
-    };
-    reader.readAsDataURL(file);
+// ---- SUPABASE STORAGE PHOTO HANDLING ----
+async function uploadPhotoToStorage(file, entryId){
+  var ext = file.name.split('.').pop() || 'jpg';
+  var path = 'food/' + entryId + '/' + uid() + '.' + ext;
+  var res = await fetch(SB_URL+'/storage/v1/object/photos/'+path, {
+    method: 'POST',
+    headers: {'apikey': SB_KEY, 'Authorization': 'Bearer '+SB_KEY, 'Content-Type': file.type},
+    body: file
   });
+  if (!res.ok) throw new Error('Upload failed');
+  return SB_URL+'/storage/v1/object/public/photos/'+path;
+}
+
+async function deletePhotoFromStorage(url){
+  var path = url.split('/object/public/photos/')[1];
+  if (!path) return;
+  try {
+    await fetch(SB_URL+'/storage/v1/object/photos/'+path, {
+      method: 'DELETE',
+      headers: {'apikey': SB_KEY, 'Authorization': 'Bearer '+SB_KEY}
+    });
+  } catch(e){}
+}
+
+async function handlePhotoUpload(event){
+  var files = Array.from(event.target.files);
+  var tempId = editingId || ('temp-'+uid());
+  for (var i=0; i<files.length; i++){
+    try {
+      var url = await uploadPhotoToStorage(files[i], tempId);
+      modalPhotos.push(url);
+      renderModalPreviews();
+    } catch(e){ alert('Photo upload failed — check your connection'); }
+  }
   event.target.value='';
 }
 
@@ -419,34 +496,35 @@ function renderModalPreviews(){
   var wrap=document.getElementById('modal-photo-previews');
   wrap.innerHTML='';
   modalPhotos.forEach(function(p,i){
-    var w=document.createElement('div');w.className='modal-thumb-wrap';
-    var img=document.createElement('img');img.className='modal-thumb';img.src=p;
-    var del=document.createElement('button');del.className='modal-thumb-del';del.textContent='✕';
-    del.onclick=function(){modalPhotos.splice(i,1);renderModalPreviews();};
-    w.appendChild(img);w.appendChild(del);wrap.appendChild(w);
+    var w=document.createElement('div'); w.className='modal-thumb-wrap';
+    var img=document.createElement('img'); img.className='modal-thumb'; img.src=p;
+    var del=document.createElement('button'); del.className='modal-thumb-del'; del.textContent='✕';
+    del.onclick=function(){ modalPhotos.splice(i,1); renderModalPreviews(); };
+    w.appendChild(img); w.appendChild(del); wrap.appendChild(w);
   });
 }
 
 function triggerCardPhotoAdd(cat,id){
   var inp=document.getElementById('cpi-'+id);
-  if(inp)inp.click();
+  if(inp) inp.click();
 }
 
-function handleCardPhotoAdd(event,cat,id){
+async function handleCardPhotoAdd(event,cat,id){
   var files=Array.from(event.target.files);
   var entry=data[cat].find(function(e){return e.id===id;});
   if(!entry)return;
   if(!entry.photos)entry.photos=[];
-  var toLoad=files.length;
-  files.forEach(function(file){
-    var reader=new FileReader();
-    reader.onload=function(e){
-      entry.photos.push(e.target.result);
-      toLoad--;
-      if(toLoad===0){save();renderSection(cat);}
-    };
-    reader.readAsDataURL(file);
-  });
+  for(var i=0;i<files.length;i++){
+    try{
+      var url=await uploadPhotoToStorage(files[i],id);
+      entry.photos.push(url);
+      // save photo URLs to DB
+      var sbRow={photos:JSON.stringify(entry.photos)};
+      try{await sbFetch('/rest/v1/food?id=eq.'+id,{method:'PATCH',body:JSON.stringify(sbRow)});}catch(ex){}
+      saveLocal();
+      renderSection(cat);
+    }catch(e){alert('Photo upload failed');}
+  }
   event.target.value='';
 }
 
@@ -454,12 +532,8 @@ function handleCardPhotoAdd(event,cat,id){
 function openLightbox(cat,id,idx){
   var entry=data[cat].find(function(e){return e.id===id;});
   if(!entry||!entry.photos||!entry.photos.length)return;
-  lbPhotos=entry.photos;
-  lbIndex=idx;
-  lbCat=cat;
-  lbEntryId=id;
-  showLbPhoto();
-  document.getElementById('lightbox').classList.add('open');
+  lbPhotos=entry.photos; lbIndex=idx; lbCat=cat; lbEntryId=id;
+  showLbPhoto(); document.getElementById('lightbox').classList.add('open');
 }
 
 function showLbPhoto(){
@@ -467,29 +541,25 @@ function showLbPhoto(){
   document.getElementById('lb-counter').textContent=(lbIndex+1)+' / '+lbPhotos.length;
 }
 
-function lbNav(dir){
-  lbIndex=(lbIndex+dir+lbPhotos.length)%lbPhotos.length;
-  showLbPhoto();
-}
+function lbNav(dir){ lbIndex=(lbIndex+dir+lbPhotos.length)%lbPhotos.length; showLbPhoto(); }
 
-function lbDelete(){
+async function lbDelete(){
   if(!confirm('Delete this photo?'))return;
   var entry=data[lbCat].find(function(e){return e.id===lbEntryId;});
   if(entry){
+    var url=entry.photos[lbIndex];
     entry.photos.splice(lbIndex,1);
-    save();
+    await deletePhotoFromStorage(url);
+    try{await sbFetch('/rest/v1/food?id=eq.'+lbEntryId,{method:'PATCH',body:JSON.stringify({photos:JSON.stringify(entry.photos)})});}catch(ex){}
+    saveLocal();
     if(!entry.photos.length){closeLightbox();renderSection(lbCat);return;}
-    lbPhotos=entry.photos;
-    lbIndex=Math.min(lbIndex,lbPhotos.length-1);
-    showLbPhoto();
-    renderSection(lbCat);
+    lbPhotos=entry.photos; lbIndex=Math.min(lbIndex,lbPhotos.length-1);
+    showLbPhoto(); renderSection(lbCat);
   }
 }
 
 function closeLightbox(){document.getElementById('lightbox').classList.remove('open');}
 document.getElementById('lightbox').addEventListener('click',function(e){if(e.target===this)closeLightbox();});
-
-// swipe support
 var lbTouchX=null;
 document.getElementById('lightbox').addEventListener('touchstart',function(e){lbTouchX=e.touches[0].clientX;},{passive:true});
 document.getElementById('lightbox').addEventListener('touchend',function(e){
@@ -498,8 +568,6 @@ document.getElementById('lightbox').addEventListener('touchend',function(e){
   if(Math.abs(dx)>50)lbNav(dx<0?1:-1);
   lbTouchX=null;
 },{passive:true});
-
-// keyboard
 document.addEventListener('keydown',function(e){
   if(!document.getElementById('lightbox').classList.contains('open'))return;
   if(e.key==='ArrowLeft')lbNav(-1);
@@ -551,13 +619,12 @@ function updateRatingStars(val){
   document.querySelectorAll('.rating-star').forEach(function(s){s.classList.toggle('filled',parseInt(s.getAttribute('data-v'))<=val);});
 }
 
-function saveEntry(){
+async function saveEntry(){
   var cat=document.getElementById('edit-cat').value;
   var title=document.getElementById('f-title').value.trim();
   if(!title){document.getElementById('f-title').focus();return;}
   var entry={
-    id:editingId||uid(),
-    title:title,
+    id:editingId||uid(),cat:cat,title:title,
     status:document.getElementById('f-status').value,
     price:document.getElementById('f-price').value,
     location:document.getElementById('f-location').value.trim(),
@@ -566,23 +633,34 @@ function saveEntry(){
     thoughts:document.getElementById('f-thoughts').value.trim(),
     photos:modalPhotos.slice()
   };
-  if(editingId){
-    var idx=data[cat].findIndex(function(e){return e.id===editingId;});
-    if(idx>-1)data[cat][idx]=entry;
-  }else{
-    data[cat].unshift(entry);
+  var sbRow={id:entry.id,cat:cat,title:entry.title,status:entry.status,price:entry.price,location:entry.location,ordered:entry.ordered,rating:entry.rating,thoughts:entry.thoughts,photos:JSON.stringify(entry.photos)};
+  try{
+    if(editingId){
+      await sbFetch('/rest/v1/food?id=eq.'+editingId,{method:'PATCH',body:JSON.stringify(sbRow)});
+      var idx=data[cat].findIndex(function(e){return e.id===editingId;});
+      if(idx>-1)data[cat][idx]=entry;
+    }else{
+      await sbFetch('/rest/v1/food',{method:'POST',body:JSON.stringify(sbRow)});
+      data[cat].unshift(entry);
+    }
+  }catch(e){
+    if(editingId){var idx=data[cat].findIndex(function(x){return x.id===editingId;});if(idx>-1)data[cat][idx]=entry;}
+    else data[cat].unshift(entry);
   }
-  save();closeModal();renderSection(cat);
+  saveLocal();closeModal();renderSection(cat);
 }
 
-function deleteEntry(cat,id){
+async function deleteEntry(cat,id){
   data[cat]=data[cat].filter(function(e){return e.id!==id;});
-  save();renderSection(cat);
+  saveLocal();renderSection(cat);
+  try{await sbFetch('/rest/v1/food?id=eq.'+id,{method:'DELETE'});}catch(e){}
 }
 
-function quickRate(cat,id,r){
+async function quickRate(cat,id,r){
   var e=data[cat].find(function(x){return x.id===id;});
-  if(e){e.rating=r;save();renderSection(cat);}
+  if(!e)return;
+  e.rating=r;saveLocal();renderSection(cat);
+  try{await sbFetch('/rest/v1/food?id=eq.'+id,{method:'PATCH',body:JSON.stringify({rating:r})});}catch(ex){}
 }
 
 function updateStats(){
@@ -594,8 +672,38 @@ function updateStats(){
   document.getElementById('st-wouldnt').textContent=all.filter(function(e){return e.status==='wouldnt';}).length;
 }
 
-load();
-renderSection('restaurants');
+function exportData(){
+  var exportData=JSON.parse(JSON.stringify(data));
+  ['restaurants','desserts','cafes','street','caterers'].forEach(function(cat){exportData[cat].forEach(function(e){e.photos=[];});});
+  var blob=new Blob([JSON.stringify(exportData,null,2)],{type:'application/json'});
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='ahmads-food-backup-'+new Date().toISOString().slice(0,10)+'.json';
+  a.click();URL.revokeObjectURL(a.href);
+}
+async function importData(event){
+  var file=event.target.files[0];if(!file)return;
+  var reader=new FileReader();
+  reader.onload=async function(e){
+    try{
+      var imported=JSON.parse(e.target.result);
+      if(imported.restaurants!==undefined){
+        var cats=['restaurants','desserts','cafes','street','caterers'];
+        for(var c=0;c<cats.length;c++){
+          var cat=cats[c];
+          for(var i=0;i<(imported[cat]||[]).length;i++){
+            var item=imported[cat][i];
+            try{await sbFetch('/rest/v1/food',{method:'POST',body:JSON.stringify({id:item.id,cat:cat,title:item.title,status:item.status,price:item.price||'',location:item.location||'',ordered:item.ordered||'',rating:item.rating||0,thoughts:item.thoughts||''})});}catch(ex){}
+          }
+        }
+        await load();renderSection(currentTab);
+        alert('Data restored!');
+      }
+    }catch(err){alert('Could not read file');}
+  };
+  reader.readAsText(file);event.target.value='';
+}
+
+load().then(function(){renderSection('restaurants');});
 </script>
 </body>
 </html>

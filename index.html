@@ -250,6 +250,18 @@ h1 .w3{color:transparent;-webkit-text-stroke:1.5px var(--neon-pink);}
       <label class="form-label">Name of Place</label>
       <input class="form-input" id="f-title" type="text" placeholder="e.g. Nando's, Crumbl Cookies..."/>
     </div>
+
+    <div class="form-group">
+      <label class="form-label">Category</label>
+      <select class="form-select" id="f-cat">
+        <option value="restaurants">🍽️ Restaurants</option>
+        <option value="desserts">🍰 Desserts</option>
+        <option value="cafes">☕ Cafes</option>
+        <option value="street">🌮 Street Food</option>
+        <option value="caterers">🤌 Caterers</option>
+      </select>
+    </div>
+
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">Status</label>
@@ -277,7 +289,7 @@ h1 .w3{color:transparent;-webkit-text-stroke:1.5px var(--neon-pink);}
     </div>
     <div class="form-group">
       <label class="form-label">What You Ordered</label>
-      <input class="form-input" id="f-ordered" type="text" placeholder="e.g. Jerk chicken, brownie sundae..."/>
+      <textarea class="form-textarea" id="f-ordered" placeholder="e.g. Jerk chicken&#10;Brownie sundae&#10;Pineapple juice..." style="min-height:90px;"></textarea>
     </div>
     <div class="form-group">
       <label class="form-label">Rating</label>
@@ -584,6 +596,7 @@ function openModal(cat,id){
   if(id){
     var e=data[cat].find(function(x){return x.id===id;});
     document.getElementById('f-title').value=e.title;
+    document.getElementById('f-cat').value=cat;
     document.getElementById('f-status').value=e.status;
     document.getElementById('f-price').value=e.price||'';
     document.getElementById('f-location').value=e.location||'';
@@ -593,6 +606,7 @@ function openModal(cat,id){
     modalPhotos=(e.photos||[]).slice();
   }else{
     document.getElementById('f-title').value='';
+    document.getElementById('f-cat').value=cat;
     document.getElementById('f-status').value='been';
     document.getElementById('f-price').value='';
     document.getElementById('f-location').value='';
@@ -619,12 +633,13 @@ function updateRatingStars(val){
   document.querySelectorAll('.rating-star').forEach(function(s){s.classList.toggle('filled',parseInt(s.getAttribute('data-v'))<=val);});
 }
 
-async function saveEntry(){
-  var cat=document.getElementById('edit-cat').value;
+function saveEntry(){
+  var originalCat=document.getElementById('edit-cat').value;
+  var newCat=document.getElementById('f-cat').value;
   var title=document.getElementById('f-title').value.trim();
   if(!title){document.getElementById('f-title').focus();return;}
   var entry={
-    id:editingId||uid(),cat:cat,title:title,
+    id:editingId||uid(),cat:newCat,title:title,
     status:document.getElementById('f-status').value,
     price:document.getElementById('f-price').value,
     location:document.getElementById('f-location').value.trim(),
@@ -633,34 +648,38 @@ async function saveEntry(){
     thoughts:document.getElementById('f-thoughts').value.trim(),
     photos:modalPhotos.slice()
   };
-  var sbRow={id:entry.id,cat:cat,title:entry.title,status:entry.status,price:entry.price,location:entry.location,ordered:entry.ordered,rating:entry.rating,thoughts:entry.thoughts,photos:JSON.stringify(entry.photos)};
-  try{
-    if(editingId){
-      sbFetch('/rest/v1/food?id=eq.'+editingId,{method:'PATCH',body:JSON.stringify(sbRow)});
-      var idx=data[cat].findIndex(function(e){return e.id===editingId;});
-      if(idx>-1)data[cat][idx]=entry;
+  var sbRow={id:entry.id,cat:newCat,title:entry.title,status:entry.status,price:entry.price,location:entry.location,ordered:entry.ordered,rating:entry.rating,thoughts:entry.thoughts,photos:JSON.stringify(entry.photos)};
+  if(editingId){
+    // if category changed, remove from old cat and add to new
+    if(newCat!==originalCat){
+      data[originalCat]=data[originalCat].filter(function(e){return e.id!==editingId;});
+      data[newCat].unshift(entry);
     }else{
-      sbFetch('/rest/v1/food',{method:'POST',body:JSON.stringify(sbRow)});
-      data[cat].unshift(entry);
+      var idx=data[originalCat].findIndex(function(e){return e.id===editingId;});
+      if(idx>-1)data[originalCat][idx]=entry;
     }
-  }catch(e){
-    if(editingId){var idx=data[cat].findIndex(function(x){return x.id===editingId;});if(idx>-1)data[cat][idx]=entry;}
-    else data[cat].unshift(entry);
+    sbFetch('/rest/v1/food?id=eq.'+editingId,{method:'PATCH',body:JSON.stringify(sbRow)}).catch(function(){});
+  }else{
+    data[newCat].unshift(entry);
+    sbFetch('/rest/v1/food',{method:'POST',body:JSON.stringify(sbRow)}).catch(function(){});
   }
-  saveLocal();closeModal();renderSection(cat);
+  saveLocal();closeModal();
+  // re-render whatever tab is currently active
+  renderSection(currentTab);
+  updateStats();
 }
 
-async function deleteEntry(cat,id){
+function deleteEntry(cat,id){
   data[cat]=data[cat].filter(function(e){return e.id!==id;});
   saveLocal();renderSection(cat);
   sbFetch('/rest/v1/food?id=eq.'+id,{method:'DELETE'}).catch(function(){});
 }
 
-async function quickRate(cat,id,r){
+function quickRate(cat,id,r){
   var e=data[cat].find(function(x){return x.id===id;});
   if(!e)return;
   e.rating=r;saveLocal();renderSection(cat);
-  try{sbFetch('/rest/v1/food?id=eq.'+id,{method:'PATCH',body:JSON.stringify({rating:r})}).catch(function(){});}catch(ex){}
+  sbFetch('/rest/v1/food?id=eq.'+id,{method:'PATCH',body:JSON.stringify({rating:r})}).catch(function(){});
 }
 
 function updateStats(){

@@ -93,8 +93,8 @@ h1 .w3{color:transparent;-webkit-text-stroke:1.5px var(--neon-pink);}
 .card-body{padding:14px;}
 .card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px;}
 .card-title{font-family:'Syne',sans-serif;font-size:17px;font-weight:700;color:var(--text);line-height:1.2;flex:1;}
-.card-actions{display:flex;gap:4px;opacity:0;transition:opacity .2s;}
-.entry-card:hover .card-actions{opacity:1;}
+.card-actions{display:flex;gap:4px;transition:opacity .2s;}
+
 .card-act-btn{background:var(--bg3);border:1px solid var(--bg4);color:var(--text3);width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;transition:all .15s;}
 .card-act-btn:hover{color:var(--text);border-color:var(--bg5);}
 .card-act-btn.del:hover{color:var(--neon-pink);border-color:rgba(255,45,122,.3);}
@@ -520,7 +520,7 @@ async function handleCardPhotoAdd(event,cat,id){
       entry.photos.push(url);
       // save photo URLs to DB
       var sbRow={photos:JSON.stringify(entry.photos)};
-      try{await sbFetch('/rest/v1/food?id=eq.'+id,{method:'PATCH',body:JSON.stringify(sbRow)});}catch(ex){}
+      sbFetch('/rest/v1/food?id=eq.'+id,{method:'PATCH',body:JSON.stringify(sbRow)}).catch(function(){});
       saveLocal();
       renderSection(cat);
     }catch(e){alert('Photo upload failed');}
@@ -550,7 +550,7 @@ async function lbDelete(){
     var url=entry.photos[lbIndex];
     entry.photos.splice(lbIndex,1);
     await deletePhotoFromStorage(url);
-    try{await sbFetch('/rest/v1/food?id=eq.'+lbEntryId,{method:'PATCH',body:JSON.stringify({photos:JSON.stringify(entry.photos)})});}catch(ex){}
+    sbFetch('/rest/v1/food?id=eq.'+lbEntryId,{method:'PATCH',body:JSON.stringify({photos:JSON.stringify(entry.photos)})}).catch(function(){});
     saveLocal();
     if(!entry.photos.length){closeLightbox();renderSection(lbCat);return;}
     lbPhotos=entry.photos; lbIndex=Math.min(lbIndex,lbPhotos.length-1);
@@ -636,11 +636,11 @@ async function saveEntry(){
   var sbRow={id:entry.id,cat:cat,title:entry.title,status:entry.status,price:entry.price,location:entry.location,ordered:entry.ordered,rating:entry.rating,thoughts:entry.thoughts,photos:JSON.stringify(entry.photos)};
   try{
     if(editingId){
-      await sbFetch('/rest/v1/food?id=eq.'+editingId,{method:'PATCH',body:JSON.stringify(sbRow)});
+      sbFetch('/rest/v1/food?id=eq.'+editingId,{method:'PATCH',body:JSON.stringify(sbRow)});
       var idx=data[cat].findIndex(function(e){return e.id===editingId;});
       if(idx>-1)data[cat][idx]=entry;
     }else{
-      await sbFetch('/rest/v1/food',{method:'POST',body:JSON.stringify(sbRow)});
+      sbFetch('/rest/v1/food',{method:'POST',body:JSON.stringify(sbRow)});
       data[cat].unshift(entry);
     }
   }catch(e){
@@ -653,14 +653,14 @@ async function saveEntry(){
 async function deleteEntry(cat,id){
   data[cat]=data[cat].filter(function(e){return e.id!==id;});
   saveLocal();renderSection(cat);
-  try{await sbFetch('/rest/v1/food?id=eq.'+id,{method:'DELETE'});}catch(e){}
+  sbFetch('/rest/v1/food?id=eq.'+id,{method:'DELETE'}).catch(function(){});
 }
 
 async function quickRate(cat,id,r){
   var e=data[cat].find(function(x){return x.id===id;});
   if(!e)return;
   e.rating=r;saveLocal();renderSection(cat);
-  try{await sbFetch('/rest/v1/food?id=eq.'+id,{method:'PATCH',body:JSON.stringify({rating:r})});}catch(ex){}
+  try{sbFetch('/rest/v1/food?id=eq.'+id,{method:'PATCH',body:JSON.stringify({rating:r})}).catch(function(){});}catch(ex){}
 }
 
 function updateStats(){
@@ -692,7 +692,7 @@ async function importData(event){
           var cat=cats[c];
           for(var i=0;i<(imported[cat]||[]).length;i++){
             var item=imported[cat][i];
-            try{await sbFetch('/rest/v1/food',{method:'POST',body:JSON.stringify({id:item.id,cat:cat,title:item.title,status:item.status,price:item.price||'',location:item.location||'',ordered:item.ordered||'',rating:item.rating||0,thoughts:item.thoughts||''})});}catch(ex){}
+            try{sbFetch('/rest/v1/food',{method:'POST',body:JSON.stringify({id:item.id,cat:cat,title:item.title,status:item.status,price:item.price||'',location:item.location||'',ordered:item.ordered||'',rating:item.rating||0,thoughts:item.thoughts||''})}).catch(function(){});}catch(ex){}
           }
         }
         await load();renderSection(currentTab);

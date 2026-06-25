@@ -583,7 +583,7 @@ function renderCard(e,cat){
     +'</div>'
     +(e.location?'<div class="card-location">'+esc(e.location)+'</div>':'')
     +'<div class="card-rating">'+stars+(avgRating>0?'<span style="font-size:11px;color:var(--neon-yellow);margin-left:5px;">'+avgRating+'</span>':'')+'</div>'
-    +(e.ordered&&!visitCount?'<div class="card-ordered">'+esc(e.ordered)+'</div>':'')
+    +(e.ordered?'<div class="card-ordered">'+esc(e.ordered)+'</div>':'')
     +(e.thoughts?'<div class="card-thoughts">'+esc(e.thoughts)+'</div>':'')
     +visitsHtml
     +'<button class="add-visit-btn" onclick="openVisitModal(\''+cat+'\',\''+e.id+'\',null)"><span class="av-icon">📅</span> Log a New Visit</button>'

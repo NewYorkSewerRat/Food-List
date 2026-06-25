@@ -168,6 +168,25 @@ h1 .w3{color:transparent;-webkit-text-stroke:1.5px var(--neon-pink);}
 .btn-cancel{background:var(--bg3);border:1px solid var(--bg4);color:var(--text2);font-family:'Syne',sans-serif;font-size:13px;font-weight:600;padding:12px 20px;border-radius:8px;cursor:pointer;transition:all .2s;text-transform:uppercase;letter-spacing:1px;}
 .btn-cancel:hover{border-color:var(--bg5);color:var(--text);}
 
+/* VISIT LOG */
+.visit-count-badge{font-size:10px;padding:2px 9px;border-radius:10px;background:rgba(255,107,43,.1);color:var(--neon-orange);border:1px solid rgba(255,107,43,.2);font-weight:600;letter-spacing:.5px;}
+.last-visited{font-size:11px;color:var(--text3);margin-bottom:6px;}
+.add-visit-btn{width:100%;background:var(--bg3);border:1px solid var(--bg4);color:var(--neon-orange);font-family:'Syne',sans-serif;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:8px;border-radius:8px;cursor:pointer;transition:all .2s;margin-top:8px;}
+.add-visit-btn:hover{background:rgba(255,107,43,.1);border-color:var(--neon-orange);}
+.visits-toggle{width:100%;background:none;border:none;color:var(--text3);font-family:'DM Sans',sans-serif;font-size:11px;padding:6px 0 0;cursor:pointer;transition:color .15s;text-align:left;letter-spacing:.5px;}
+.visits-toggle:hover{color:var(--text2);}
+.visits-list{margin-top:8px;display:flex;flex-direction:column;gap:6px;}
+.visit-item{background:var(--bg3);border:1px solid var(--bg4);border-radius:8px;padding:10px 12px;position:relative;}
+.visit-item-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
+.visit-date{font-size:11px;color:var(--text2);font-weight:500;}
+.visit-rating{display:flex;gap:2px;}
+.visit-star{font-size:12px;color:var(--text3);}
+.visit-star.filled{color:var(--neon-yellow);}
+.visit-ordered{font-size:12px;color:var(--text2);line-height:1.5;margin-top:4px;}
+.visit-notes{font-size:12px;color:var(--text3);font-style:italic;margin-top:3px;}
+.visit-del{position:absolute;top:8px;right:8px;background:none;border:none;color:var(--text3);cursor:pointer;font-size:12px;padding:2px;transition:color .15s;}
+.visit-del:hover{color:var(--neon-pink);}
+
 ::-webkit-scrollbar{width:5px;}
 ::-webkit-scrollbar-track{background:var(--bg);}
 ::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:3px;}
@@ -236,6 +255,42 @@ h1 .w3{color:transparent;-webkit-text-stroke:1.5px var(--neon-pink);}
     <span class="lb-counter" id="lb-counter">1 / 1</span>
     <button class="lb-btn" onclick="lbNav(1)">&#8250;</button>
     <button class="lb-del" onclick="lbDelete()" title="Delete photo">🗑</button>
+  </div>
+</div>
+
+<!-- VISIT MODAL -->
+<div class="modal-overlay" id="visit-modal">
+  <div class="modal">
+    <p class="modal-title">Log <span id="visit-modal-place">Visit</span></p>
+    <input type="hidden" id="visit-entry-id"/>
+    <input type="hidden" id="visit-entry-cat"/>
+    <input type="hidden" id="visit-edit-id"/>
+    <div class="form-group">
+      <label class="form-label">Date of Visit</label>
+      <input class="form-input" id="visit-date" type="date"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">What You Ordered</label>
+      <textarea class="form-textarea" id="visit-ordered" placeholder="e.g. Jerk chicken&#10;Plantain&#10;Mango juice..." style="min-height:80px;"></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Rating This Visit</label>
+      <div class="rating-input" id="visit-rating-input">
+        <span class="visit-rating-star rating-star" data-v="1">★</span>
+        <span class="visit-rating-star rating-star" data-v="2">★</span>
+        <span class="visit-rating-star rating-star" data-v="3">★</span>
+        <span class="visit-rating-star rating-star" data-v="4">★</span>
+        <span class="visit-rating-star rating-star" data-v="5">★</span>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Notes</label>
+      <input class="form-input" id="visit-notes" type="text" placeholder="Anything worth noting about this visit..."/>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeVisitModal()">Cancel</button>
+      <button class="btn-save" onclick="saveVisit()">Log Visit</button>
+    </div>
   </div>
 </div>
 
@@ -371,7 +426,8 @@ async function load(){
         id:r.id,title:r.title,status:r.status,price:r.price||'',
         location:r.location||'',ordered:r.ordered||'',
         rating:r.rating||0,thoughts:r.thoughts||'',
-        photos:r.photos?JSON.parse(r.photos):[]
+        photos:r.photos?JSON.parse(r.photos):[],
+        visits:r.visits?JSON.parse(r.visits):[]
       });
     });
     saveLocal();
@@ -422,9 +478,30 @@ function renderSection(cat){
   updateStats();
 }
 
+function getAvgRating(e){
+  var visits=e.visits||[];
+  if(!visits.length) return e.rating||0;
+  var rated=visits.filter(function(v){return v.rating>0;});
+  if(!rated.length) return e.rating||0;
+  return Math.round(rated.reduce(function(s,v){return s+v.rating;},0)/rated.length*10)/10;
+}
+function getLastVisited(e){
+  var visits=e.visits||[];
+  if(!visits.length) return null;
+  return visits.slice().sort(function(a,b){return b.date>a.date?1:-1;})[0].date;
+}
+function formatVisitDate(d){
+  if(!d)return '';
+  return new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+}
+
 function renderCard(e,cat){
+  var visits=e.visits||[];
+  var visitCount=visits.length;
+  var avgRating=getAvgRating(e);
+  var lastVisited=getLastVisited(e);
   var stars='';
-  for(var i=1;i<=5;i++) stars+='<span class="star'+(i<=e.rating?' filled':'')+'" onclick="quickRate(\''+cat+'\',\''+e.id+'\','+i+')">★</span>';
+  for(var i=1;i<=5;i++) stars+='<span class="star'+(i<=avgRating?' filled':'')+'" onclick="quickRate(\''+cat+'\',\''+e.id+'\','+i+')">★</span>';
 
   var photos=e.photos||[];
   var photoStrip='';
@@ -443,12 +520,32 @@ function renderCard(e,cat){
       +'</div>';
   }
 
+  // visits list HTML
+  var visitsHtml='';
+  if(visitCount>0){
+    var sorted=visits.slice().sort(function(a,b){return b.date>a.date?1:-1;});
+    visitsHtml+='<button class="visits-toggle" onclick="toggleVisits(\''+e.id+'\')">▸ '+visitCount+' visit'+(visitCount>1?'s':'')+(lastVisited?' · Last: '+formatVisitDate(lastVisited):'')+'</button>';
+    visitsHtml+='<div class="visits-list" id="vl-'+e.id+'" style="display:none;">';
+    sorted.forEach(function(v){
+      var vstars='';
+      for(var i=1;i<=5;i++) vstars+='<span class="visit-star'+(i<=v.rating?' filled':'')+'" >★</span>';
+      visitsHtml+='<div class="visit-item">';
+      visitsHtml+='<button class="visit-del" onclick="deleteVisit(\''+cat+'\',\''+e.id+'\',\''+v.id+'\')">✕</button>';
+      visitsHtml+='<div class="visit-item-header"><span class="visit-date">'+formatVisitDate(v.date)+'</span><div class="visit-rating">'+vstars+'</div></div>';
+      if(v.ordered) visitsHtml+='<div class="visit-ordered">'+esc(v.ordered)+'</div>';
+      if(v.notes) visitsHtml+='<div class="visit-notes">'+esc(v.notes)+'</div>';
+      visitsHtml+='</div>';
+    });
+    visitsHtml+='</div>';
+  }
+
   return '<div class="entry-card '+e.status+'">'
     +photoStrip
     +'<div class="card-body">'
     +'<div class="card-top">'
       +'<div class="card-title">'+esc(e.title)+'</div>'
       +'<div class="card-actions">'
+        +(visitCount>0?'<span class="visit-count-badge">'+visitCount+'×</span>':'')
         +'<button class="card-act-btn" onclick="openModal(\''+cat+'\',\''+e.id+'\')">✎</button>'
         +'<button class="card-act-btn del" onclick="deleteEntry(\''+cat+'\',\''+e.id+'\')">✕</button>'
       +'</div>'
@@ -458,11 +555,101 @@ function renderCard(e,cat){
       +(e.price?'<span class="price-badge">'+esc(e.price)+'</span>':'')
     +'</div>'
     +(e.location?'<div class="card-location">'+esc(e.location)+'</div>':'')
-    +'<div class="card-rating">'+stars+'</div>'
-    +(e.ordered?'<div class="card-ordered">'+esc(e.ordered)+'</div>':'')
+    +'<div class="card-rating">'+stars+(avgRating>0?'<span style="font-size:11px;color:var(--neon-yellow);margin-left:5px;">'+avgRating+'</span>':'')+'</div>'
+    +(e.ordered&&!visitCount?'<div class="card-ordered">'+esc(e.ordered)+'</div>':'')
     +(e.thoughts?'<div class="card-thoughts">'+esc(e.thoughts)+'</div>':'')
+    +visitsHtml
+    +'<button class="add-visit-btn" onclick="openVisitModal(\''+cat+'\',\''+e.id+'\',null)">+ Add Visit</button>'
     +'</div>'
   +'</div>';
+}
+
+function toggleVisits(id){
+  var el=document.getElementById('vl-'+id);
+  var btn=el?el.previousElementSibling:null;
+  if(!el)return;
+  var open=el.style.display==='none';
+  el.style.display=open?'flex':'none';
+  if(btn) btn.textContent=btn.textContent.replace(open?'▸':'▾',open?'▾':'▸');
+}
+
+// ---- VISIT MODAL ----
+var visitRating=0;
+
+function openVisitModal(cat,entryId,visitId){
+  document.getElementById('visit-entry-id').value=entryId;
+  document.getElementById('visit-entry-cat').value=cat;
+  document.getElementById('visit-edit-id').value=visitId||'';
+  var entry=data[cat].find(function(e){return e.id===entryId;});
+  document.getElementById('visit-modal-place').textContent=entry?esc(entry.title):'Visit';
+  visitRating=0;
+  if(visitId){
+    var v=(entry.visits||[]).find(function(x){return x.id===visitId;});
+    if(v){
+      document.getElementById('visit-date').value=v.date||todayDateStr();
+      document.getElementById('visit-ordered').value=v.ordered||'';
+      document.getElementById('visit-notes').value=v.notes||'';
+      visitRating=v.rating||0;
+    }
+  }else{
+    document.getElementById('visit-date').value=todayDateStr();
+    document.getElementById('visit-ordered').value='';
+    document.getElementById('visit-notes').value='';
+  }
+  updateVisitRatingStars(visitRating);
+  document.getElementById('visit-modal').classList.add('open');
+  setTimeout(function(){document.getElementById('visit-ordered').focus();},100);
+}
+
+function closeVisitModal(){document.getElementById('visit-modal').classList.remove('open');}
+document.getElementById('visit-modal').addEventListener('click',function(e){if(e.target===this)closeVisitModal();});
+
+document.querySelectorAll('.visit-rating-star').forEach(function(star){
+  star.addEventListener('click',function(){visitRating=parseInt(this.getAttribute('data-v'));updateVisitRatingStars(visitRating);});
+  star.addEventListener('mouseover',function(){updateVisitRatingStars(parseInt(this.getAttribute('data-v')));});
+});
+document.getElementById('visit-rating-input').addEventListener('mouseleave',function(){updateVisitRatingStars(visitRating);});
+function updateVisitRatingStars(val){
+  document.querySelectorAll('.visit-rating-star').forEach(function(s){s.classList.toggle('filled',parseInt(s.getAttribute('data-v'))<=val);});
+}
+
+function todayDateStr(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+
+function saveVisit(){
+  var cat=document.getElementById('visit-entry-cat').value;
+  var entryId=document.getElementById('visit-entry-id').value;
+  var visitId=document.getElementById('visit-edit-id').value;
+  var entry=data[cat].find(function(e){return e.id===entryId;});
+  if(!entry)return;
+  if(!entry.visits)entry.visits=[];
+  var visit={
+    id:visitId||uid(),
+    date:document.getElementById('visit-date').value||todayDateStr(),
+    ordered:document.getElementById('visit-ordered').value.trim(),
+    rating:visitRating,
+    notes:document.getElementById('visit-notes').value.trim()
+  };
+  if(visitId){
+    var idx=entry.visits.findIndex(function(x){return x.id===visitId;});
+    if(idx>-1)entry.visits[idx]=visit;
+  }else{
+    entry.visits.push(visit);
+  }
+  // update entry status to regular if they keep coming back
+  if(entry.visits.length>=2&&entry.status==='been') entry.status='regular';
+  saveLocal();
+  // sync to supabase — store visits as JSON in the ordered field isn't ideal, use a dedicated column
+  sbFetch('/rest/v1/food?id=eq.'+entryId,{method:'PATCH',body:JSON.stringify({visits:JSON.stringify(entry.visits),status:entry.status})}).catch(function(){});
+  closeVisitModal();renderSection(cat);
+}
+
+function deleteVisit(cat,entryId,visitId){
+  var entry=data[cat].find(function(e){return e.id===entryId;});
+  if(!entry||!entry.visits)return;
+  entry.visits=entry.visits.filter(function(v){return v.id!==visitId;});
+  saveLocal();
+  sbFetch('/rest/v1/food?id=eq.'+entryId,{method:'PATCH',body:JSON.stringify({visits:JSON.stringify(entry.visits)})}).catch(function(){});
+  renderSection(cat);
 }
 
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
@@ -638,6 +825,7 @@ function saveEntry(){
   var newCat=document.getElementById('f-cat').value;
   var title=document.getElementById('f-title').value.trim();
   if(!title){document.getElementById('f-title').focus();return;}
+  var existing=editingId?(data[originalCat]||[]).find(function(e){return e.id===editingId;}):null;
   var entry={
     id:editingId||uid(),cat:newCat,title:title,
     status:document.getElementById('f-status').value,
@@ -646,9 +834,10 @@ function saveEntry(){
     ordered:document.getElementById('f-ordered').value.trim(),
     rating:editRating,
     thoughts:document.getElementById('f-thoughts').value.trim(),
-    photos:modalPhotos.slice()
+    photos:modalPhotos.slice(),
+    visits:existing?existing.visits||[]:[]
   };
-  var sbRow={id:entry.id,cat:newCat,title:entry.title,status:entry.status,price:entry.price,location:entry.location,ordered:entry.ordered,rating:entry.rating,thoughts:entry.thoughts,photos:JSON.stringify(entry.photos)};
+  var sbRow={id:entry.id,cat:newCat,title:entry.title,status:entry.status,price:entry.price,location:entry.location,ordered:entry.ordered,rating:entry.rating,thoughts:entry.thoughts,photos:JSON.stringify(entry.photos),visits:JSON.stringify(entry.visits||[])};
   if(editingId){
     // if category changed, remove from old cat and add to new
     if(newCat!==originalCat){

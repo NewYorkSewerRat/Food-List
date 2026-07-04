@@ -214,6 +214,11 @@ h1 .w3{color:transparent;-webkit-text-stroke:1.5px var(--neon-pink);}
 .visit-del{position:absolute;top:8px;right:8px;background:none;border:none;color:var(--text3);cursor:pointer;font-size:12px;padding:2px;transition:color .15s;}
 .visit-del:hover{color:var(--neon-pink);}
 
+.visit-actions{display:flex;gap:6px;margin-top:8px;}
+.visit-action-btn{flex:1;background:var(--bg4);border:1px solid var(--bg5);color:var(--text2);font-size:11px;font-weight:500;padding:6px;border-radius:7px;cursor:pointer;transition:all .15s;text-align:center;}
+.visit-action-btn:hover{color:var(--text);border-color:var(--neon-teal);}
+.visit-action-btn.del:hover{color:var(--neon-pink);border-color:var(--neon-pink);}
+
 ::-webkit-scrollbar{width:5px;}
 ::-webkit-scrollbar-track{background:var(--bg);}
 ::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:3px;}
@@ -302,12 +307,9 @@ h1 .w3{color:transparent;-webkit-text-stroke:1.5px var(--neon-pink);}
     </div>
     <div class="form-group">
       <label class="form-label">Rating This Visit</label>
-      <div class="rating-input" id="visit-rating-input">
-        <span class="visit-rating-star rating-star" data-v="1">★</span>
-        <span class="visit-rating-star rating-star" data-v="2">★</span>
-        <span class="visit-rating-star rating-star" data-v="3">★</span>
-        <span class="visit-rating-star rating-star" data-v="4">★</span>
-        <span class="visit-rating-star rating-star" data-v="5">★</span>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div class="rating-input" id="visit-rating-input" style="gap:2px;"></div>
+        <span id="visit-rating-display" style="font-size:13px;color:var(--neon-yellow);min-width:24px;">0</span>
       </div>
     </div>
     <div class="form-group">
@@ -557,10 +559,13 @@ function renderCard(e,cat){
       var vstars='';
       for(var i=1;i<=5;i++) vstars+='<span class="visit-star'+(i<=v.rating?' filled':'')+'" >★</span>';
       visitsHtml+='<div class="visit-item">';
-      visitsHtml+='<button class="visit-del" onclick="deleteVisit(\''+cat+'\',\''+e.id+'\',\''+v.id+'\')">✕</button>';
       visitsHtml+='<div class="visit-item-header"><span class="visit-date">'+formatVisitDate(v.date)+'</span><div class="visit-rating">'+vstars+'</div></div>';
       if(v.ordered) visitsHtml+='<div class="visit-ordered">'+esc(v.ordered)+'</div>';
       if(v.notes) visitsHtml+='<div class="visit-notes">'+esc(v.notes)+'</div>';
+      visitsHtml+='<div class="visit-actions">'
+        +'<button class="visit-action-btn" onclick="openVisitModal(\''+cat+'\',\''+e.id+'\',\''+v.id+'\')">✎ Edit</button>'
+        +'<button class="visit-action-btn del" onclick="deleteVisit(\''+cat+'\',\''+e.id+'\',\''+v.id+'\')">✕ Remove</button>'
+        +'</div>';
       visitsHtml+='</div>';
     });
     visitsHtml+='</div>';
@@ -631,14 +636,41 @@ function openVisitModal(cat,entryId,visitId){
 function closeVisitModal(){document.getElementById('visit-modal').classList.remove('open');}
 document.getElementById('visit-modal').addEventListener('click',function(e){if(e.target===this)closeVisitModal();});
 
-document.querySelectorAll('.visit-rating-star').forEach(function(star){
-  star.addEventListener('click',function(){visitRating=parseInt(this.getAttribute('data-v'));updateVisitRatingStars(visitRating);});
-  star.addEventListener('mouseover',function(){updateVisitRatingStars(parseInt(this.getAttribute('data-v')));});
-});
-document.getElementById('visit-rating-input').addEventListener('mouseleave',function(){updateVisitRatingStars(visitRating);});
-function updateVisitRatingStars(val){
-  document.querySelectorAll('.visit-rating-star').forEach(function(s){s.classList.toggle('filled',parseInt(s.getAttribute('data-v'))<=val);});
+function buildVisitStars(val){
+  var ri=document.getElementById('visit-rating-input');if(!ri)return;
+  ri.innerHTML='';
+  for(var i=1;i<=5;i++){
+    (function(idx){
+      var wrap=document.createElement('span');wrap.className='star-wrap';wrap.style.fontSize='22px';
+      var bg=document.createElement('span');bg.className='star-bg';bg.textContent='★';
+      wrap.appendChild(bg);
+      var full=val>=idx;var half=!full&&val>=idx-0.5;
+      if(full||half){var fill=document.createElement('span');fill.className='star-fill '+(half?'half':'full');fill.textContent='★';fill.style.fontSize='22px';wrap.appendChild(fill);}
+      wrap.onmousemove=function(e){
+        var r=wrap.getBoundingClientRect();var hv=(e.clientX-r.left<r.width/2)?idx-0.5:idx;
+        previewVisitStars(hv);
+      };
+      wrap.onmouseleave=function(){previewVisitStars(visitRating);};
+      wrap.onclick=function(e){
+        var r=wrap.getBoundingClientRect();visitRating=(e.clientX-r.left<r.width/2)?idx-0.5:idx;
+        buildVisitStars(visitRating);
+        var rd=document.getElementById('visit-rating-display');if(rd)rd.textContent=visitRating;
+      };
+      ri.appendChild(wrap);
+    })(i);
+  }
+  var rd=document.getElementById('visit-rating-display');if(rd)rd.textContent=val||0;
 }
+function previewVisitStars(val){
+  var ri=document.getElementById('visit-rating-input');if(!ri)return;
+  ri.querySelectorAll('.star-wrap').forEach(function(wrap,idx){
+    var starVal=idx+1;var fill=wrap.querySelector('.star-fill');
+    if(val>=starVal){if(!fill){fill=document.createElement('span');fill.className='star-fill full';fill.textContent='★';fill.style.fontSize='22px';wrap.appendChild(fill);}fill.className='star-fill full';}
+    else if(val>=starVal-0.5){if(!fill){fill=document.createElement('span');fill.className='star-fill half';fill.textContent='★';fill.style.fontSize='22px';wrap.appendChild(fill);}fill.className='star-fill half';}
+    else{if(fill)fill.className='star-fill';}
+  });
+}
+function updateVisitRatingStars(val){buildVisitStars(val);}
 
 function todayDateStr(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 

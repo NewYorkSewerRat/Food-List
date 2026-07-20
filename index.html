@@ -615,14 +615,14 @@ function renderCard(e,cat){
   }
 
   var isHome=cat==='homemade';
-  var visitWord=isHome?'time made':'visit';
-  var visitWordPl=isHome?'times made':'visits';
+  var visitWord='visit';
+  var visitWordPl='visits';
 
-  // visits list HTML
+  // visits list HTML — homemade entries don't use the remake/visit system
   var visitsHtml='';
-  if(visitCount>0){
+  if(!isHome&&visitCount>0){
     var sorted=visits.slice().sort(function(a,b){return b.date>a.date?1:-1;});
-    visitsHtml+='<button class="visits-toggle" onclick="toggleVisits(\''+e.id+'\')"><span class="vt-arrow">▸</span> '+(isHome?'Remake history · Last made: ':'Visit history · Last: ')+formatVisitDate(lastVisited)+'</button>';
+    visitsHtml+='<button class="visits-toggle" onclick="toggleVisits(\''+e.id+'\')"><span class="vt-arrow">▸</span> Visit history · Last: '+formatVisitDate(lastVisited)+'</button>';
     visitsHtml+='<div class="visits-list" id="vl-'+e.id+'" style="display:none;">';
     sorted.forEach(function(v){
       var vstars='';
@@ -656,19 +656,19 @@ function renderCard(e,cat){
     +'<div class="card-meta">'
       +'<span class="status-badge '+e.status+'"><span class="status-dot"></span>'+getStatusLabel(e.status,cat)+'</span>'
       +(e.price?'<span class="price-badge">'+esc(e.price)+'</span>':'')
-      +(visitCount>0?'<span class="visit-count-chip" onclick="toggleVisits(\''+e.id+'\')"><span class="vc-icon">🔁</span>'+visitCount+' '+(visitCount>1?visitWordPl:visitWord)+'</span>':'')
+      +(!isHome&&visitCount>0?'<span class="visit-count-chip" onclick="toggleVisits(\''+e.id+'\')"><span class="vc-icon">🔁</span>'+visitCount+' '+(visitCount>1?visitWordPl:visitWord)+'</span>':'')
     +'</div>'
     +(!isHome&&e.location?'<div class="card-location">'+esc(e.location)+'</div>':'')
-    +((e.createdAt||lastVisited)?'<div class="card-date-line">'
+    +((e.createdAt||(!isHome&&lastVisited))?'<div class="card-date-line">'
         +(e.createdAt?'📅 Added '+formatVisitDate(e.createdAt.slice(0,10)):'')
-        +(e.createdAt&&lastVisited?' · ':'')
-        +(lastVisited?'🔁 '+(isHome?'Last made ':'Last visited ')+formatVisitDate(lastVisited):'')
+        +(e.createdAt&&!isHome&&lastVisited?' · ':'')
+        +(!isHome&&lastVisited?'🔁 Last visited '+formatVisitDate(lastVisited):'')
       +'</div>':'')
     +'<div class="card-rating">'+stars+(avgRating>0?'<span style="font-size:11px;color:var(--neon-yellow);margin-left:5px;">'+avgRating+'</span>':'')+'</div>'
     +renderItemsBlock(e.items,e.ordered)
     +(e.thoughts?'<div class="card-thoughts">'+esc(e.thoughts)+'</div>':'')
     +visitsHtml
-    +'<button class="add-visit-btn" onclick="openVisitModal(\''+cat+'\',\''+e.id+'\',null)"><span class="av-icon">📅</span> '+(isHome?'Log a Remake':'Log a New Visit')+'</button>'
+    +(isHome?'':'<button class="add-visit-btn" onclick="openVisitModal(\''+cat+'\',\''+e.id+'\',null)"><span class="av-icon">📅</span> Log a New Visit</button>')
     +'</div>'
   +'</div>';
 }

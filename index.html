@@ -109,10 +109,35 @@ h1 .w3{color:transparent;-webkit-text-stroke:1.5px var(--neon-pink);}
 .card-location{font-size:12px;color:var(--text2);margin-bottom:8px;display:flex;align-items:center;gap:5px;}
 .card-location::before{content:'📍';font-size:11px;}
 .card-rating{display:flex;gap:2px;margin-bottom:8px;}
+.card-date-line{font-size:11px;color:var(--text2);margin-bottom:6px;}
 .star{font-size:14px;color:var(--text3);cursor:pointer;transition:color .1s;}
 .star.filled{color:var(--neon-yellow);}
 .star:hover{color:var(--neon-yellow);}
+.star-wrap{position:relative;display:inline-block;cursor:pointer;line-height:1;}
+.star-bg{color:var(--text3);}
+.star-fill{position:absolute;top:0;left:0;overflow:hidden;color:var(--neon-yellow);pointer-events:none;}
+.star-fill.half{width:50%;}
+.star-fill.full{width:100%;}
 .card-ordered{font-size:12px;color:var(--text2);margin-bottom:8px;padding:7px 10px;background:var(--bg3);border-radius:8px;border:1px solid var(--bg4);display:flex;align-items:flex-start;gap:6px;}
+
+/* ITEMIZED FOOD DISPLAY (card) */
+.card-items{background:var(--bg3);border:1px solid var(--bg4);border-radius:8px;padding:8px 10px;margin-bottom:8px;}
+.card-item-row{display:flex;justify-content:space-between;font-size:12px;color:var(--text2);padding:3px 0;}
+.ci-name{flex:1;}
+.ci-cal{color:var(--neon-orange);font-weight:600;flex-shrink:0;margin-left:8px;}
+.card-item-total{display:flex;justify-content:flex-end;font-size:12px;font-weight:700;color:var(--neon-yellow);margin-top:5px;padding-top:5px;border-top:1px solid var(--bg4);}
+
+/* FOOD ITEM BUILDER (modal) */
+.food-items-list{display:flex;flex-direction:column;gap:6px;margin-bottom:8px;}
+.food-item-row{display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--bg4);border-radius:8px;padding:8px 10px;}
+.food-item-row .fir-name{flex:1;font-size:13px;color:var(--text);}
+.food-item-row .fir-cal{font-size:12px;color:var(--neon-orange);font-weight:600;flex-shrink:0;}
+.food-item-row .fir-del{background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:2px 4px;flex-shrink:0;}
+.food-item-row .fir-del:hover{color:var(--neon-pink);}
+.food-item-add-row{display:flex;gap:8px;}
+.food-item-add-btn{background:var(--neon-teal);border:none;color:#06231f;font-size:18px;font-weight:700;width:42px;border-radius:8px;cursor:pointer;flex-shrink:0;transition:all .15s;}
+.food-item-add-btn:hover{filter:brightness(1.1);}
+.food-items-total{text-align:right;font-size:12.5px;font-weight:700;color:var(--neon-yellow);margin-top:6px;}
 .card-ordered::before{content:'🍽️';font-size:12px;flex-shrink:0;margin-top:1px;}
 .card-thoughts{font-size:13px;color:var(--text2);line-height:1.6;font-style:italic;border-top:1px solid var(--bg4);padding-top:9px;margin-top:4px;}
 
@@ -267,6 +292,7 @@ h1 .w3{color:transparent;-webkit-text-stroke:1.5px var(--neon-pink);}
   <button class="tab-btn t-cafes"              onclick="switchTab('cafes',this)"><span>☕</span> Cafes</button>
   <button class="tab-btn t-street"             onclick="switchTab('street',this)"><span>🌮</span> Street Food</button>
   <button class="tab-btn t-caterers"           onclick="switchTab('caterers',this)"><span>🤌</span> Caterers</button>
+  <button class="tab-btn t-homemade"           onclick="switchTab('homemade',this)"><span>🧁</span> Homemade</button>
 </div>
 
 <div class="main">
@@ -275,6 +301,7 @@ h1 .w3{color:transparent;-webkit-text-stroke:1.5px var(--neon-pink);}
   <div id="sec-cafes"       class="section"></div>
   <div id="sec-street"      class="section"></div>
   <div id="sec-caterers"    class="section"></div>
+  <div id="sec-homemade"    class="section"></div>
 </div>
 
 <!-- LIGHTBOX -->
@@ -292,17 +319,23 @@ h1 .w3{color:transparent;-webkit-text-stroke:1.5px var(--neon-pink);}
 <!-- VISIT MODAL -->
 <div class="modal-overlay" id="visit-modal">
   <div class="modal">
-    <p class="modal-title">Log <span id="visit-modal-place">Visit</span></p>
+    <p class="modal-title" id="visit-modal-title">Log <span id="visit-modal-place">Visit</span></p>
     <input type="hidden" id="visit-entry-id"/>
     <input type="hidden" id="visit-entry-cat"/>
     <input type="hidden" id="visit-edit-id"/>
     <div class="form-group">
-      <label class="form-label">Date of Visit</label>
+      <label class="form-label" id="visit-date-label">Date of Visit</label>
       <input class="form-input" id="visit-date" type="date"/>
     </div>
     <div class="form-group">
-      <label class="form-label">What You Ordered</label>
-      <textarea class="form-textarea" id="visit-ordered" placeholder="e.g. Jerk chicken&#10;Plantain&#10;Mango juice..." style="min-height:80px;"></textarea>
+      <label class="form-label" id="visit-items-label">Food Items &amp; Calories</label>
+      <div class="food-items-list" id="visit-food-items-list"></div>
+      <div class="food-item-add-row">
+        <input class="form-input" id="vfi-name" type="text" placeholder="Dish name..." style="flex:2;" onkeydown="if(event.key==='Enter'){event.preventDefault();addVisitFoodItem();}"/>
+        <input class="form-input" id="vfi-cal" type="number" inputmode="numeric" placeholder="kcal" style="flex:1;max-width:90px;" onkeydown="if(event.key==='Enter'){event.preventDefault();addVisitFoodItem();}"/>
+        <button class="food-item-add-btn" onclick="addVisitFoodItem()">+</button>
+      </div>
+      <div class="food-items-total" id="visit-food-items-total"></div>
     </div>
     <div class="form-group">
       <label class="form-label">Rating This Visit</label>
@@ -317,7 +350,7 @@ h1 .w3{color:transparent;-webkit-text-stroke:1.5px var(--neon-pink);}
     </div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeVisitModal()">Cancel</button>
-      <button class="btn-save" onclick="saveVisit()">Log Visit</button>
+      <button class="btn-save" id="visit-save-btn" onclick="saveVisit()">Log Visit</button>
     </div>
   </div>
 </div>
@@ -336,12 +369,13 @@ h1 .w3{color:transparent;-webkit-text-stroke:1.5px var(--neon-pink);}
 
     <div class="form-group">
       <label class="form-label">Category</label>
-      <select class="form-select" id="f-cat">
+      <select class="form-select" id="f-cat" onchange="onCatChange(this.value)">
         <option value="restaurants">🍽️ Restaurants</option>
         <option value="desserts">🍰 Desserts</option>
         <option value="cafes">☕ Cafes</option>
         <option value="street">🌮 Street Food</option>
         <option value="caterers">🤌 Caterers</option>
+        <option value="homemade">🧁 Homemade</option>
       </select>
     </div>
 
@@ -349,13 +383,13 @@ h1 .w3{color:transparent;-webkit-text-stroke:1.5px var(--neon-pink);}
       <div class="form-group">
         <label class="form-label">Status</label>
         <select class="form-select" id="f-status">
-          <option value="been">Been Here</option>
-          <option value="want">Want to Visit</option>
-          <option value="regular">Regular Spot</option>
-          <option value="wouldnt">Wouldn't Go Back</option>
+          <option value="been" id="opt-been">Been Here</option>
+          <option value="want" id="opt-want">Want to Visit</option>
+          <option value="regular" id="opt-regular">Regular Spot</option>
+          <option value="wouldnt" id="opt-wouldnt">Wouldn't Go Back</option>
         </select>
       </div>
-      <div class="form-group">
+      <div class="form-group" id="price-group">
         <label class="form-label">Price Range</label>
         <select class="form-select" id="f-price">
           <option value="">— Select —</option>
@@ -366,13 +400,19 @@ h1 .w3{color:transparent;-webkit-text-stroke:1.5px var(--neon-pink);}
         </select>
       </div>
     </div>
-    <div class="form-group">
+    <div class="form-group" id="location-group">
       <label class="form-label">Location / Area</label>
       <input class="form-input" id="f-location" type="text" placeholder="e.g. Bridgetown, St. Michael..."/>
     </div>
     <div class="form-group">
-      <label class="form-label">What You Ordered</label>
-      <textarea class="form-textarea" id="f-ordered" placeholder="e.g. Jerk chicken&#10;Brownie sundae&#10;Pineapple juice..." style="min-height:90px;"></textarea>
+      <label class="form-label">Food Items &amp; Calories</label>
+      <div class="food-items-list" id="food-items-list"></div>
+      <div class="food-item-add-row">
+        <input class="form-input" id="fi-name" type="text" placeholder="Dish name..." style="flex:2;" onkeydown="if(event.key==='Enter'){event.preventDefault();addFoodItem();}"/>
+        <input class="form-input" id="fi-cal" type="number" inputmode="numeric" placeholder="kcal" style="flex:1;max-width:90px;" onkeydown="if(event.key==='Enter'){event.preventDefault();addFoodItem();}"/>
+        <button class="food-item-add-btn" onclick="addFoodItem()">+</button>
+      </div>
+      <div class="food-items-total" id="food-items-total"></div>
     </div>
     <div class="form-group">
       <label class="form-label">Rating</label>
@@ -408,10 +448,11 @@ h1 .w3{color:transparent;-webkit-text-stroke:1.5px var(--neon-pink);}
 </div>
 
 <script>
-var data={restaurants:[],desserts:[],cafes:[],street:[],caterers:[]};
+var data={restaurants:[],desserts:[],cafes:[],street:[],caterers:[],homemade:[]};
 var currentTab='restaurants';
-var currentFilter={restaurants:'all',desserts:'all',cafes:'all',street:'all',caterers:'all'};
+var currentFilter={restaurants:'all',desserts:'all',cafes:'all',street:'all',caterers:'all',homemade:'all'};
 var editRating=0;
+var modalItems=[];
 var editingId=null;
 var modalPhotos=[];
 
@@ -422,8 +463,9 @@ var lbCat='';
 var lbEntryId='';
 
 var statusLabels={been:'Been Here',want:'Want to Visit',regular:'Regular Spot',wouldnt:"Won't Return"};
-var tabLabels={restaurants:'Restaurant',desserts:'Dessert Place',cafes:'Cafe',street:'Street Food Spot',caterers:'Caterer'};
-var tabIcons={restaurants:'🍽️',desserts:'🍰',cafes:'☕',street:'🌮',caterers:'🤌'};
+var homemadeStatusLabels={been:'Made It',want:'Want to Make',regular:'Go-To Recipe',wouldnt:"Wouldn't Make Again"};
+var tabLabels={restaurants:'Restaurant',desserts:'Dessert Place',cafes:'Cafe',street:'Street Food Spot',caterers:'Caterer',homemade:'Homemade Creation'};
+var tabIcons={restaurants:'🍽️',desserts:'🍰',cafes:'☕',street:'🌮',caterers:'🤌',homemade:'🧁'};
 
 var SB_URL='https://oludgjpyrennjfkizmas.supabase.co';
 var SB_KEY='sb_publishable_iPOfDAFeSbuFD95Ibnr05w_U9fQHHvJ';
@@ -448,14 +490,16 @@ async function load(){
     var res=await sbFetch('/rest/v1/food?select=*&order=created_at.desc');
     if(!res.ok)throw new Error();
     var rows=await res.json();
-    data={restaurants:[],desserts:[],cafes:[],street:[],caterers:[]};
+    data={restaurants:[],desserts:[],cafes:[],street:[],caterers:[],homemade:[]};
     rows.forEach(function(r){
       if(data[r.cat]!==undefined) data[r.cat].push({
         id:r.id,title:r.title,status:r.status,price:r.price||'',
         location:r.location||'',ordered:r.ordered||'',
+        items:r.items?JSON.parse(r.items):[],
         rating:r.rating||0,thoughts:r.thoughts||'',
         photos:r.photos?JSON.parse(r.photos):[],
-        visits:r.visits?JSON.parse(r.visits):[]
+        visits:r.visits?JSON.parse(r.visits):[],
+        createdAt:r.created_at||null
       });
     });
     saveLocal();
@@ -482,13 +526,18 @@ function setFilter(cat,status,el){
   renderSection(cat);
 }
 
+function getStatusLabel(status,cat){
+  return cat==='homemade'?(homemadeStatusLabels[status]||status):(statusLabels[status]||status);
+}
 function renderSection(cat){
   var sec=document.getElementById('sec-'+cat);
   var filter=currentFilter[cat];
   var entries=data[cat];
   var filtered=filter==='all'?entries:entries.filter(function(e){return e.status===filter;});
 
-  var statuses=[{k:'all',l:'All'},{k:'been',l:'Visited'},{k:'want',l:'Want to Go'},{k:'regular',l:'Regular'},{k:'wouldnt',l:"Won't Return"}];
+  var statuses=cat==='homemade'
+    ?[{k:'all',l:'All'},{k:'been',l:'Made It'},{k:'want',l:'Want to Make'},{k:'regular',l:'Go-To'},{k:'wouldnt',l:"Wouldn't Remake"}]
+    :[{k:'all',l:'All'},{k:'been',l:'Visited'},{k:'want',l:'Want to Go'},{k:'regular',l:'Regular'},{k:'wouldnt',l:"Won't Return"}];
   var html='<div class="filter-row"><div class="filter-pills">';
   statuses.forEach(function(s){
     var cls='pill '+(s.k==='all'?'all':s.k)+(currentFilter[cat]===s.k?' active-filter':'');
@@ -522,6 +571,20 @@ function formatVisitDate(d){
   if(!d)return '';
   return new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
 }
+function renderItemsBlock(items,legacyOrdered){
+  if(items&&items.length){
+    var total=items.reduce(function(s,it){return s+(parseInt(it.cal)||0);},0);
+    var html='<div class="card-items">';
+    items.forEach(function(it){
+      html+='<div class="card-item-row"><span class="ci-name">'+esc(it.name)+'</span><span class="ci-cal">'+(it.cal||0)+' kcal</span></div>';
+    });
+    html+='<div class="card-item-total">Total: '+total+' kcal</div></div>';
+    return html;
+  }else if(legacyOrdered){
+    return '<div class="card-ordered">'+esc(legacyOrdered)+'</div>';
+  }
+  return '';
+}
 
 function renderCard(e,cat){
   var visits=e.visits||[];
@@ -529,7 +592,10 @@ function renderCard(e,cat){
   var avgRating=getAvgRating(e);
   var lastVisited=getLastVisited(e);
   var stars='';
-  for(var i=1;i<=5;i++) stars+='<span class="star'+(i<=avgRating?' filled':'')+'" onclick="quickRate(\''+cat+'\',\''+e.id+'\','+i+')">★</span>';
+  for(var i=1;i<=5;i++){
+    var sfull=avgRating>=i, shalf=!sfull&&avgRating>=i-0.5;
+    stars+='<span class="star-wrap" style="font-size:14px;" onclick="clickCardStar(event,\''+cat+'\',\''+e.id+'\','+i+')"><span class="star-bg">★</span>'+(sfull||shalf?'<span class="star-fill '+(shalf?'half':'full')+'" style="font-size:14px;">★</span>':'')+'</span>';
+  }
 
   var photos=e.photos||[];
   var photoStrip='';
@@ -548,18 +614,25 @@ function renderCard(e,cat){
       +'</div>';
   }
 
+  var isHome=cat==='homemade';
+  var visitWord=isHome?'time made':'visit';
+  var visitWordPl=isHome?'times made':'visits';
+
   // visits list HTML
   var visitsHtml='';
   if(visitCount>0){
     var sorted=visits.slice().sort(function(a,b){return b.date>a.date?1:-1;});
-    visitsHtml+='<button class="visits-toggle" onclick="toggleVisits(\''+e.id+'\')"><span class="vt-arrow">▸</span> Visit history · Last: '+formatVisitDate(lastVisited)+'</button>';
+    visitsHtml+='<button class="visits-toggle" onclick="toggleVisits(\''+e.id+'\')"><span class="vt-arrow">▸</span> '+(isHome?'Remake history · Last made: ':'Visit history · Last: ')+formatVisitDate(lastVisited)+'</button>';
     visitsHtml+='<div class="visits-list" id="vl-'+e.id+'" style="display:none;">';
     sorted.forEach(function(v){
       var vstars='';
-      for(var i=1;i<=5;i++) vstars+='<span class="visit-star'+(i<=v.rating?' filled':'')+'" >★</span>';
+      for(var i=1;i<=5;i++){
+        var vfull=v.rating>=i, vhalf=!vfull&&v.rating>=i-0.5;
+        vstars+='<span class="star-wrap" style="font-size:12px;"><span class="star-bg">★</span>'+(vfull||vhalf?'<span class="star-fill '+(vhalf?'half':'full')+'" style="font-size:12px;">★</span>':'')+'</span>';
+      }
       visitsHtml+='<div class="visit-item">';
       visitsHtml+='<div class="visit-item-header"><span class="visit-date">'+formatVisitDate(v.date)+'</span><div class="visit-rating">'+vstars+'</div></div>';
-      if(v.ordered) visitsHtml+='<div class="visit-ordered">'+esc(v.ordered)+'</div>';
+      visitsHtml+=renderItemsBlock(v.items,v.ordered);
       if(v.notes) visitsHtml+='<div class="visit-notes">'+esc(v.notes)+'</div>';
       visitsHtml+='<div class="visit-actions">'
         +'<button class="visit-action-btn" onclick="openVisitModal(\''+cat+'\',\''+e.id+'\',\''+v.id+'\')">✎ Edit</button>'
@@ -581,16 +654,21 @@ function renderCard(e,cat){
       +'</div>'
     +'</div>'
     +'<div class="card-meta">'
-      +'<span class="status-badge '+e.status+'"><span class="status-dot"></span>'+statusLabels[e.status]+'</span>'
+      +'<span class="status-badge '+e.status+'"><span class="status-dot"></span>'+getStatusLabel(e.status,cat)+'</span>'
       +(e.price?'<span class="price-badge">'+esc(e.price)+'</span>':'')
-      +(visitCount>0?'<span class="visit-count-chip" onclick="toggleVisits(\''+e.id+'\')"><span class="vc-icon">🔁</span>'+visitCount+' visit'+(visitCount>1?'s':'')+'</span>':'')
+      +(visitCount>0?'<span class="visit-count-chip" onclick="toggleVisits(\''+e.id+'\')"><span class="vc-icon">🔁</span>'+visitCount+' '+(visitCount>1?visitWordPl:visitWord)+'</span>':'')
     +'</div>'
-    +(e.location?'<div class="card-location">'+esc(e.location)+'</div>':'')
+    +(!isHome&&e.location?'<div class="card-location">'+esc(e.location)+'</div>':'')
+    +((e.createdAt||lastVisited)?'<div class="card-date-line">'
+        +(e.createdAt?'📅 Added '+formatVisitDate(e.createdAt.slice(0,10)):'')
+        +(e.createdAt&&lastVisited?' · ':'')
+        +(lastVisited?'🔁 '+(isHome?'Last made ':'Last visited ')+formatVisitDate(lastVisited):'')
+      +'</div>':'')
     +'<div class="card-rating">'+stars+(avgRating>0?'<span style="font-size:11px;color:var(--neon-yellow);margin-left:5px;">'+avgRating+'</span>':'')+'</div>'
-    +(e.ordered?'<div class="card-ordered">'+esc(e.ordered)+'</div>':'')
+    +renderItemsBlock(e.items,e.ordered)
     +(e.thoughts?'<div class="card-thoughts">'+esc(e.thoughts)+'</div>':'')
     +visitsHtml
-    +'<button class="add-visit-btn" onclick="openVisitModal(\''+cat+'\',\''+e.id+'\',null)"><span class="av-icon">📅</span> Log a New Visit</button>'
+    +'<button class="add-visit-btn" onclick="openVisitModal(\''+cat+'\',\''+e.id+'\',null)"><span class="av-icon">📅</span> '+(isHome?'Log a Remake':'Log a New Visit')+'</button>'
     +'</div>'
   +'</div>';
 }
@@ -606,6 +684,53 @@ function toggleVisits(id){
 
 // ---- VISIT MODAL ----
 var visitRating=0;
+var visitItems=[];
+
+// ---- FOOD ITEM BUILDER (main add/edit modal) ----
+function renderFoodItemsList(){
+  var list=document.getElementById('food-items-list');
+  if(!list)return;
+  list.innerHTML=modalItems.map(function(it,idx){
+    return '<div class="food-item-row"><span class="fir-name">'+esc(it.name)+'</span><span class="fir-cal">'+it.cal+' kcal</span><button class="fir-del" onclick="removeFoodItem('+idx+')">✕</button></div>';
+  }).join('');
+  var total=modalItems.reduce(function(s,it){return s+(parseInt(it.cal)||0);},0);
+  document.getElementById('food-items-total').textContent=modalItems.length?('Total: '+total+' kcal'):'';
+}
+function addFoodItem(){
+  var nameEl=document.getElementById('fi-name'),calEl=document.getElementById('fi-cal');
+  var name=nameEl.value.trim(),cal=parseInt(calEl.value)||0;
+  if(!name)return;
+  modalItems.push({name:name,cal:cal});
+  nameEl.value='';calEl.value='';nameEl.focus();
+  renderFoodItemsList();
+}
+function removeFoodItem(idx){
+  modalItems.splice(idx,1);
+  renderFoodItemsList();
+}
+
+// ---- FOOD ITEM BUILDER (visit modal) ----
+function renderVisitFoodItemsList(){
+  var list=document.getElementById('visit-food-items-list');
+  if(!list)return;
+  list.innerHTML=visitItems.map(function(it,idx){
+    return '<div class="food-item-row"><span class="fir-name">'+esc(it.name)+'</span><span class="fir-cal">'+it.cal+' kcal</span><button class="fir-del" onclick="removeVisitFoodItem('+idx+')">✕</button></div>';
+  }).join('');
+  var total=visitItems.reduce(function(s,it){return s+(parseInt(it.cal)||0);},0);
+  document.getElementById('visit-food-items-total').textContent=visitItems.length?('Total: '+total+' kcal'):'';
+}
+function addVisitFoodItem(){
+  var nameEl=document.getElementById('vfi-name'),calEl=document.getElementById('vfi-cal');
+  var name=nameEl.value.trim(),cal=parseInt(calEl.value)||0;
+  if(!name)return;
+  visitItems.push({name:name,cal:cal});
+  nameEl.value='';calEl.value='';nameEl.focus();
+  renderVisitFoodItemsList();
+}
+function removeVisitFoodItem(idx){
+  visitItems.splice(idx,1);
+  renderVisitFoodItemsList();
+}
 
 function openVisitModal(cat,entryId,visitId){
   document.getElementById('visit-entry-id').value=entryId;
@@ -613,23 +738,27 @@ function openVisitModal(cat,entryId,visitId){
   document.getElementById('visit-edit-id').value=visitId||'';
   var entry=data[cat].find(function(e){return e.id===entryId;});
   document.getElementById('visit-modal-place').textContent=entry?esc(entry.title):'Visit';
-  visitRating=0;
+  var isHome=cat==='homemade';
+  document.getElementById('visit-date-label').textContent=isHome?'Date Made':'Date of Visit';
+  document.getElementById('visit-items-label').textContent=isHome?'Ingredients / Items & Calories':'Food Items & Calories';
+  document.getElementById('visit-save-btn').textContent=isHome?'Log Remake':'Log Visit';
+  visitRating=0;visitItems=[];
   if(visitId){
     var v=(entry.visits||[]).find(function(x){return x.id===visitId;});
     if(v){
       document.getElementById('visit-date').value=v.date||todayDateStr();
-      document.getElementById('visit-ordered').value=v.ordered||'';
+      visitItems=(v.items||[]).slice();
       document.getElementById('visit-notes').value=v.notes||'';
       visitRating=v.rating||0;
     }
   }else{
     document.getElementById('visit-date').value=todayDateStr();
-    document.getElementById('visit-ordered').value='';
     document.getElementById('visit-notes').value='';
   }
+  renderVisitFoodItemsList();
   updateVisitRatingStars(visitRating);
   document.getElementById('visit-modal').classList.add('open');
-  setTimeout(function(){document.getElementById('visit-ordered').focus();},100);
+  setTimeout(function(){document.getElementById('vfi-name').focus();},100);
 }
 
 function closeVisitModal(){document.getElementById('visit-modal').classList.remove('open');}
@@ -680,10 +809,12 @@ function saveVisit(){
   var entry=data[cat].find(function(e){return e.id===entryId;});
   if(!entry)return;
   if(!entry.visits)entry.visits=[];
+  var existingVisit=visitId?entry.visits.find(function(x){return x.id===visitId;}):null;
   var visit={
     id:visitId||uid(),
     date:document.getElementById('visit-date').value||todayDateStr(),
-    ordered:document.getElementById('visit-ordered').value.trim(),
+    items:visitItems.slice(),
+    ordered:existingVisit?existingVisit.ordered||'':'',
     rating:visitRating,
     notes:document.getElementById('visit-notes').value.trim()
   };
@@ -846,7 +977,7 @@ function openModal(cat,id){
     document.getElementById('f-status').value=e.status;
     document.getElementById('f-price').value=e.price||'';
     document.getElementById('f-location').value=e.location||'';
-    document.getElementById('f-ordered').value=e.ordered||'';
+    modalItems=(e.items||[]).slice();
     document.getElementById('f-thoughts').value=e.thoughts||'';
     editRating=e.rating||0;
     modalPhotos=(e.photos||[]).slice();
@@ -856,18 +987,31 @@ function openModal(cat,id){
     document.getElementById('f-status').value='been';
     document.getElementById('f-price').value='';
     document.getElementById('f-location').value='';
-    document.getElementById('f-ordered').value='';
+    modalItems=[];
     document.getElementById('f-thoughts').value='';
     editRating=0;
     modalPhotos=[];
   }
+  onCatChange(cat);
+  renderFoodItemsList();
   updateRatingStars(editRating);
   renderModalPreviews();
   document.getElementById('modal-overlay').classList.add('open');
   setTimeout(function(){document.getElementById('f-title').focus();},100);
 }
 
-function closeModal(){document.getElementById('modal-overlay').classList.remove('open');editingId=null;modalPhotos=[];}
+function onCatChange(cat){
+  var isHome=cat==='homemade';
+  document.getElementById('location-group').style.display=isHome?'none':'block';
+  document.getElementById('price-group').style.display=isHome?'none':'block';
+  var labels=isHome?homemadeStatusLabels:statusLabels;
+  document.getElementById('opt-been').textContent=labels.been;
+  document.getElementById('opt-want').textContent=labels.want;
+  document.getElementById('opt-regular').textContent=labels.regular;
+  document.getElementById('opt-wouldnt').textContent=labels.wouldnt;
+}
+
+function closeModal(){document.getElementById('modal-overlay').classList.remove('open');editingId=null;modalPhotos=[];modalItems=[];}
 document.getElementById('modal-overlay').addEventListener('click',function(e){if(e.target===this)closeModal();});
 
 document.querySelectorAll('.rating-star').forEach(function(star){
@@ -890,13 +1034,15 @@ function saveEntry(){
     status:document.getElementById('f-status').value,
     price:document.getElementById('f-price').value,
     location:document.getElementById('f-location').value.trim(),
-    ordered:document.getElementById('f-ordered').value.trim(),
+    items:modalItems.slice(),
+    ordered:existing?existing.ordered||'':'',
     rating:editRating,
     thoughts:document.getElementById('f-thoughts').value.trim(),
     photos:modalPhotos.slice(),
-    visits:existing?existing.visits||[]:[]
+    visits:existing?existing.visits||[]:[],
+    createdAt:existing?existing.createdAt:new Date().toISOString()
   };
-  var sbRow={id:entry.id,cat:newCat,title:entry.title,status:entry.status,price:entry.price,location:entry.location,ordered:entry.ordered,rating:entry.rating,thoughts:entry.thoughts,photos:JSON.stringify(entry.photos),visits:JSON.stringify(entry.visits||[])};
+  var sbRow={id:entry.id,cat:newCat,title:entry.title,status:entry.status,price:entry.price,location:entry.location,items:JSON.stringify(entry.items),ordered:entry.ordered,rating:entry.rating,thoughts:entry.thoughts,photos:JSON.stringify(entry.photos),visits:JSON.stringify(entry.visits||[])};
   if(editingId){
     // if category changed, remove from old cat and add to new
     if(newCat!==originalCat){
@@ -924,6 +1070,11 @@ function deleteEntry(cat,id){
   sbFetch('/rest/v1/food?id=eq.'+id,{method:'DELETE'}).catch(function(){});
 }
 
+function clickCardStar(event,cat,id,i){
+  var rect=event.currentTarget.getBoundingClientRect();
+  var val=(event.clientX-rect.left<rect.width/2)?i-0.5:i;
+  quickRate(cat,id,val);
+}
 function quickRate(cat,id,r){
   var e=data[cat].find(function(x){return x.id===id;});
   if(!e)return;
@@ -932,7 +1083,7 @@ function quickRate(cat,id,r){
 }
 
 function updateStats(){
-  var all=[].concat(data.restaurants,data.desserts,data.cafes,data.street,data.caterers);
+  var all=[].concat(data.restaurants,data.desserts,data.cafes,data.street,data.caterers,data.homemade);
   document.getElementById('st-total').textContent=all.length;
   document.getElementById('st-been').textContent=all.filter(function(e){return e.status==='been';}).length;
   document.getElementById('st-want').textContent=all.filter(function(e){return e.status==='want';}).length;
@@ -942,7 +1093,7 @@ function updateStats(){
 
 function exportData(){
   var exportData=JSON.parse(JSON.stringify(data));
-  ['restaurants','desserts','cafes','street','caterers'].forEach(function(cat){exportData[cat].forEach(function(e){e.photos=[];});});
+  ['restaurants','desserts','cafes','street','caterers','homemade'].forEach(function(cat){exportData[cat].forEach(function(e){e.photos=[];});});
   var blob=new Blob([JSON.stringify(exportData,null,2)],{type:'application/json'});
   var a=document.createElement('a');a.href=URL.createObjectURL(blob);
   a.download='ahmads-food-backup-'+new Date().toISOString().slice(0,10)+'.json';
@@ -955,12 +1106,12 @@ async function importData(event){
     try{
       var imported=JSON.parse(e.target.result);
       if(imported.restaurants!==undefined){
-        var cats=['restaurants','desserts','cafes','street','caterers'];
+        var cats=['restaurants','desserts','cafes','street','caterers','homemade'];
         for(var c=0;c<cats.length;c++){
           var cat=cats[c];
           for(var i=0;i<(imported[cat]||[]).length;i++){
             var item=imported[cat][i];
-            try{sbFetch('/rest/v1/food',{method:'POST',body:JSON.stringify({id:item.id,cat:cat,title:item.title,status:item.status,price:item.price||'',location:item.location||'',ordered:item.ordered||'',rating:item.rating||0,thoughts:item.thoughts||''})}).catch(function(){});}catch(ex){}
+            try{sbFetch('/rest/v1/food',{method:'POST',body:JSON.stringify({id:item.id,cat:cat,title:item.title,status:item.status,price:item.price||'',location:item.location||'',items:JSON.stringify(item.items||[]),ordered:item.ordered||'',rating:item.rating||0,thoughts:item.thoughts||'',visits:JSON.stringify(item.visits||[])})}).catch(function(){});}catch(ex){}
           }
         }
         await load();renderSection(currentTab);

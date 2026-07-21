@@ -293,6 +293,7 @@ h1 .w3{color:transparent;-webkit-text-stroke:1.5px var(--neon-pink);}
   <button class="tab-btn t-street"             onclick="switchTab('street',this)"><span>🌮</span> Street Food</button>
   <button class="tab-btn t-caterers"           onclick="switchTab('caterers',this)"><span>🤌</span> Caterers</button>
   <button class="tab-btn t-homemade"           onclick="switchTab('homemade',this)"><span>🧁</span> Homemade</button>
+  <button class="tab-btn t-overseas"           onclick="switchTab('overseas',this)"><span>🌍</span> Overseas</button>
 </div>
 
 <div class="main">
@@ -302,6 +303,7 @@ h1 .w3{color:transparent;-webkit-text-stroke:1.5px var(--neon-pink);}
   <div id="sec-street"      class="section"></div>
   <div id="sec-caterers"    class="section"></div>
   <div id="sec-homemade"    class="section"></div>
+  <div id="sec-overseas"    class="section"></div>
 </div>
 
 <!-- LIGHTBOX -->
@@ -376,6 +378,7 @@ h1 .w3{color:transparent;-webkit-text-stroke:1.5px var(--neon-pink);}
         <option value="street">🌮 Street Food</option>
         <option value="caterers">🤌 Caterers</option>
         <option value="homemade">🧁 Homemade</option>
+        <option value="overseas">🌍 Overseas</option>
       </select>
     </div>
 
@@ -401,7 +404,7 @@ h1 .w3{color:transparent;-webkit-text-stroke:1.5px var(--neon-pink);}
       </div>
     </div>
     <div class="form-group" id="location-group">
-      <label class="form-label">Location / Area</label>
+      <label class="form-label" id="location-label">Location / Area</label>
       <input class="form-input" id="f-location" type="text" placeholder="e.g. Bridgetown, St. Michael..."/>
     </div>
     <div class="form-group">
@@ -448,9 +451,9 @@ h1 .w3{color:transparent;-webkit-text-stroke:1.5px var(--neon-pink);}
 </div>
 
 <script>
-var data={restaurants:[],desserts:[],cafes:[],street:[],caterers:[],homemade:[]};
+var data={restaurants:[],desserts:[],cafes:[],street:[],caterers:[],homemade:[],overseas:[]};
 var currentTab='restaurants';
-var currentFilter={restaurants:'all',desserts:'all',cafes:'all',street:'all',caterers:'all',homemade:'all'};
+var currentFilter={restaurants:'all',desserts:'all',cafes:'all',street:'all',caterers:'all',homemade:'all',overseas:'all'};
 var editRating=0;
 var modalItems=[];
 var editingId=null;
@@ -464,8 +467,9 @@ var lbEntryId='';
 
 var statusLabels={been:'Been Here',want:'Want to Visit',regular:'Regular Spot',wouldnt:"Won't Return"};
 var homemadeStatusLabels={been:'Made It',want:'Want to Make',regular:'Go-To Recipe',wouldnt:"Wouldn't Make Again"};
-var tabLabels={restaurants:'Restaurant',desserts:'Dessert Place',cafes:'Cafe',street:'Street Food Spot',caterers:'Caterer',homemade:'Homemade Creation'};
-var tabIcons={restaurants:'🍽️',desserts:'🍰',cafes:'☕',street:'🌮',caterers:'🤌',homemade:'🧁'};
+var overseasStatusLabels={been:'Tried It',want:'Want to Try',regular:'Favorite',wouldnt:"Wouldn't Try Again"};
+var tabLabels={restaurants:'Restaurant',desserts:'Dessert Place',cafes:'Cafe',street:'Street Food Spot',caterers:'Caterer',homemade:'Homemade Creation',overseas:'Overseas Find'};
+var tabIcons={restaurants:'🍽️',desserts:'🍰',cafes:'☕',street:'🌮',caterers:'🤌',homemade:'🧁',overseas:'🌍'};
 
 var SB_URL='https://oludgjpyrennjfkizmas.supabase.co';
 var SB_KEY='sb_publishable_iPOfDAFeSbuFD95Ibnr05w_U9fQHHvJ';
@@ -490,7 +494,7 @@ async function load(){
     var res=await sbFetch('/rest/v1/food?select=*&order=created_at.desc');
     if(!res.ok)throw new Error();
     var rows=await res.json();
-    data={restaurants:[],desserts:[],cafes:[],street:[],caterers:[],homemade:[]};
+    data={restaurants:[],desserts:[],cafes:[],street:[],caterers:[],homemade:[],overseas:[]};
     rows.forEach(function(r){
       if(data[r.cat]!==undefined) data[r.cat].push({
         id:r.id,title:r.title,status:r.status,price:r.price||'',
@@ -527,7 +531,9 @@ function setFilter(cat,status,el){
 }
 
 function getStatusLabel(status,cat){
-  return cat==='homemade'?(homemadeStatusLabels[status]||status):(statusLabels[status]||status);
+  if(cat==='homemade')return homemadeStatusLabels[status]||status;
+  if(cat==='overseas')return overseasStatusLabels[status]||status;
+  return statusLabels[status]||status;
 }
 function renderSection(cat){
   var sec=document.getElementById('sec-'+cat);
@@ -537,6 +543,8 @@ function renderSection(cat){
 
   var statuses=cat==='homemade'
     ?[{k:'all',l:'All'},{k:'been',l:'Made It'},{k:'want',l:'Want to Make'},{k:'regular',l:'Go-To'},{k:'wouldnt',l:"Wouldn't Remake"}]
+    :cat==='overseas'
+    ?[{k:'all',l:'All'},{k:'been',l:'Tried It'},{k:'want',l:'Want to Try'},{k:'regular',l:'Favorite'},{k:'wouldnt',l:"Wouldn't Try Again"}]
     :[{k:'all',l:'All'},{k:'been',l:'Visited'},{k:'want',l:'Want to Go'},{k:'regular',l:'Regular'},{k:'wouldnt',l:"Won't Return"}];
   var html='<div class="filter-row"><div class="filter-pills">';
   statuses.forEach(function(s){
@@ -1002,9 +1010,12 @@ function openModal(cat,id){
 
 function onCatChange(cat){
   var isHome=cat==='homemade';
+  var isOverseas=cat==='overseas';
   document.getElementById('location-group').style.display=isHome?'none':'block';
   document.getElementById('price-group').style.display=isHome?'none':'block';
-  var labels=isHome?homemadeStatusLabels:statusLabels;
+  document.getElementById('location-label').textContent=isOverseas?'Country / Where From':'Location / Area';
+  document.getElementById('f-location').placeholder=isOverseas?'e.g. Japan, Trinidad, JFK Duty Free...':'e.g. Bridgetown, St. Michael...';
+  var labels=isHome?homemadeStatusLabels:(isOverseas?overseasStatusLabels:statusLabels);
   document.getElementById('opt-been').textContent=labels.been;
   document.getElementById('opt-want').textContent=labels.want;
   document.getElementById('opt-regular').textContent=labels.regular;
@@ -1083,7 +1094,7 @@ function quickRate(cat,id,r){
 }
 
 function updateStats(){
-  var all=[].concat(data.restaurants,data.desserts,data.cafes,data.street,data.caterers,data.homemade);
+  var all=[].concat(data.restaurants,data.desserts,data.cafes,data.street,data.caterers,data.homemade,data.overseas);
   document.getElementById('st-total').textContent=all.length;
   document.getElementById('st-been').textContent=all.filter(function(e){return e.status==='been';}).length;
   document.getElementById('st-want').textContent=all.filter(function(e){return e.status==='want';}).length;
@@ -1093,7 +1104,7 @@ function updateStats(){
 
 function exportData(){
   var exportData=JSON.parse(JSON.stringify(data));
-  ['restaurants','desserts','cafes','street','caterers','homemade'].forEach(function(cat){exportData[cat].forEach(function(e){e.photos=[];});});
+  ['restaurants','desserts','cafes','street','caterers','homemade','overseas'].forEach(function(cat){exportData[cat].forEach(function(e){e.photos=[];});});
   var blob=new Blob([JSON.stringify(exportData,null,2)],{type:'application/json'});
   var a=document.createElement('a');a.href=URL.createObjectURL(blob);
   a.download='ahmads-food-backup-'+new Date().toISOString().slice(0,10)+'.json';
@@ -1106,7 +1117,7 @@ async function importData(event){
     try{
       var imported=JSON.parse(e.target.result);
       if(imported.restaurants!==undefined){
-        var cats=['restaurants','desserts','cafes','street','caterers','homemade'];
+        var cats=['restaurants','desserts','cafes','street','caterers','homemade','overseas'];
         for(var c=0;c<cats.length;c++){
           var cat=cats[c];
           for(var i=0;i<(imported[cat]||[]).length;i++){
